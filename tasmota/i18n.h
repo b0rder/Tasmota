@@ -583,6 +583,14 @@
 #define D_CMND_PING "Ping"
 #define D_JSON_PING "Ping"
 
+// Commands xdrv_40.ino
+#define D_CMND_MHI_POWER "mhi"
+#define D_CMND_MHI_MODE "Mode"
+#define D_CMND_MHI_TSETPOINT "Tsetpoint"
+#define D_CMND_MHI_FAN "Fan"
+#define D_CMND_MHI_VANES "Vanes"
+#define D_CMND_MHI_ERROPDATA "ErrOpData"
+
 // Commands xsns_02_analog.ino
 #define D_CMND_ADCPARAM "AdcParam"
 
@@ -615,6 +623,7 @@
 #define D_LOG_UPNP "UPP: "         // UPnP
 #define D_LOG_WIFI "WIF: "         // Wifi
 #define D_LOG_ZIGBEE "ZIG: "       // Zigbee
+#define D_LOG_MHI "MHI: "          // Infra Red Received
 
 /********************************************************************************************/
 
