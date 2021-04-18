@@ -1,7 +1,7 @@
 /*
   xdsp_01_lcd.ino - Display LCD support for Tasmota
 
-  Copyright (C) 2020  Theo Arends and Adafruit
+  Copyright (C) 2021  Theo Arends and Adafruit
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -55,8 +55,9 @@ void LcdInit(uint8_t mode)
   }
 }
 
-void LcdInitDriver(void)
-{
+void LcdInitDriver(void) {
+  if (!TasmotaGlobal.i2c_enabled) { return; }
+
   if (!Settings.display_model) {
     if (I2cSetDevice(LCD_ADDRESS1)) {
       Settings.display_address[0] = LCD_ADDRESS1;
@@ -93,9 +94,9 @@ void LcdDrawStringAt(void)
   lcd->print(dsp_str);
 }
 
-void LcdDisplayOnOff(uint8_t on)
+void LcdDisplayOnOff()
 {
-  if (on) {
+  if (disp_power) {
     lcd->backlight();
   } else {
     lcd->noBacklight();
@@ -147,7 +148,7 @@ bool LcdPrintLog(void)
       strlcpy(disp_screen_buffer[last_row], txt, disp_screen_buffer_cols);
       DisplayFillScreen(last_row);
 
-      AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "[%s]"), disp_screen_buffer[last_row]);
+      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "[%s]"), disp_screen_buffer[last_row]);
 
       lcd->setCursor(0, last_row);
       lcd->print(disp_screen_buffer[last_row]);
@@ -212,7 +213,7 @@ bool Xdsp01(uint8_t function)
         LcdInit(dsp_init);
         break;
       case FUNC_DISPLAY_POWER:
-        LcdDisplayOnOff(disp_power);
+        LcdDisplayOnOff();
         break;
       case FUNC_DISPLAY_CLEAR:
         lcd->clear();
@@ -237,9 +238,6 @@ bool Xdsp01(uint8_t function)
 //          break;
       case FUNC_DISPLAY_DRAW_STRING:
         LcdDrawStringAt();
-        break;
-      case FUNC_DISPLAY_ONOFF:
-        LcdDisplayOnOff(dsp_on);
         break;
 //        case FUNC_DISPLAY_ROTATION:
 //          break;

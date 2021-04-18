@@ -7,7 +7,7 @@
   between a secondary, user-allocated stack on the heap and the real
   stack.
 
-  Copyright (c) 2017 Earle F. Philhower, III. All rights reserved.
+  Copyright (C) 2021  Earle F. Philhower, III. All rights reserved.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -26,7 +26,9 @@
 */
 
 #include "my_user_config.h"
+#include "tasmota_configurations.h"
 
+#if defined(ESP8266) && defined(USE_TLS)
 #include <stdint.h>
 #include <stdlib.h>
 #include "StackThunk_light.h"
@@ -40,8 +42,10 @@ uint32_t *stack_thunk_light_save = NULL;  /* Saved A1 while in BearSSL */
 uint32_t stack_thunk_light_refcnt = 0;
 
 //#define _stackSize (5600/4)
-#if defined(USE_MQTT_AWS_IOT) || defined(USE_MQTT_TLS_FORCE_EC_CIPHER)
+#if defined(USE_MQTT_AWS_IOT)
   #define _stackSize (5300/4)   // using a light version of bearssl we can save 300 bytes
+#elif defined(USE_MQTT_TLS_FORCE_EC_CIPHER) || defined(USE_4K_RSA)
+  #define _stackSize (4800/4)   // no private key, we can reduce a little, max observed 4300
 #else
   #define _stackSize (3600/4)   // using a light version of bearssl we can save 2k
 #endif
@@ -118,27 +122,29 @@ uint32_t stack_thunk_light_get_max_usage()
 }
 
 /* Print the stack from the first used 16-byte chunk to the top, decodable by the exception decoder */
-void stack_thunk_light_dump_stack()
-{
-  uint32_t *pos = stack_thunk_light_top;
-  while (pos < stack_thunk_light_ptr) {
-    if ((pos[0] != _stackPaint) || (pos[1] != _stackPaint) || (pos[2] != _stackPaint) || (pos[3] != _stackPaint))
-      break;
-    pos += 4;
-  }
-  ets_printf(">>>stack>>>\n");
-  while (pos < stack_thunk_light_ptr) {
-    ets_printf("%08x:  %08x %08x %08x %08x\n", (int32_t)pos, pos[0], pos[1], pos[2], pos[3]);
-    pos += 4;
-  }
-  ets_printf("<<<stack<<<\n");
-}
+// void stack_thunk_light_dump_stack()
+// {
+//   uint32_t *pos = stack_thunk_light_top;
+//   while (pos < stack_thunk_light_ptr) {
+//     if ((pos[0] != _stackPaint) || (pos[1] != _stackPaint) || (pos[2] != _stackPaint) || (pos[3] != _stackPaint))
+//       break;
+//     pos += 4;
+//   }
+//   ets_printf(">>>stack>>>\n");
+//   while (pos < stack_thunk_light_ptr) {
+//     ets_printf("%08x:  %08x %08x %08x %08x\n", (int32_t)pos, pos[0], pos[1], pos[2], pos[3]);
+//     pos += 4;
+//   }
+//   ets_printf("<<<stack<<<\n");
+// }
 
 /* Called when the stack overflow is detected by a thunk.  Main memory is corrupted at this point.  Do not return. */
 void stack_thunk_light_fatal_overflow()
 {
-    ets_printf("FATAL ERROR: BSSL stack overflow\n");
+    // ets_printf("FATAL ERROR: BSSL stack overflow\n");
     abort();
 }
 
 };
+
+#endif

@@ -1,7 +1,7 @@
 /*
   xnrg_11_ddsu666.ino - Chint DDSU666-Modbus energy meter support for Tasmota
 
-  Copyright (C) 2020  Pablo Zerón and Theo Arends
+  Copyright (C) 2021  Pablo Zerón and Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ void DDSU666Every250ms(void)
     AddLogBuffer(LOG_LEVEL_DEBUG_MORE, buffer, Ddsu666Modbus->ReceiveCount());
 
     if (error) {
-      AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SDM: Ddsu666 error %d"), error);
+      AddLog(LOG_LEVEL_DEBUG, PSTR("SDM: Ddsu666 error %d"), error);
     } else {
       Energy.data_valid[0] = 0;
 
@@ -110,7 +110,7 @@ void DDSU666Every250ms(void)
           break;
 
         case 7:
-          Energy.export_active = value;    // 6.216 kWh
+          Energy.export_active[0] = value;    // 6.216 kWh
           break;
       }
 
@@ -138,14 +138,14 @@ void Ddsu666SnsInit(void)
   if (result) {
     if (2 == result) { ClaimSerial(); }
   } else {
-    energy_flg = ENERGY_NONE;
+    TasmotaGlobal.energy_driver = ENERGY_NONE;
   }
 }
 
 void Ddsu666DrvInit(void)
 {
   if (PinUsed(GPIO_DDSU666_RX) && PinUsed(GPIO_DDSU666_TX)) {
-    energy_flg = XNRG_11;
+    TasmotaGlobal.energy_driver = XNRG_11;
   }
 }
 
@@ -159,7 +159,7 @@ bool Xnrg11(uint8_t function)
 
   switch (function) {
     case FUNC_EVERY_250_MSECOND:
-      if (uptime > 4) { DDSU666Every250ms(); }
+      DDSU666Every250ms();
       break;
     case FUNC_INIT:
       Ddsu666SnsInit();

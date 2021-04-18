@@ -1,7 +1,7 @@
 /*
   xsns_27_apds9960.ino - Support for I2C APDS9960 Proximity Sensor for Tasmota
 
-  Copyright (C) 2020  Shawn Hymel/Sparkfun and Theo Arends
+  Copyright (C) 2021  Shawn Hymel/Sparkfun and Theo Arends
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are met:
@@ -86,9 +86,6 @@ const char HTTP_SNS_GESTURE[]     PROGMEM = "{s}%s " D_GESTURE "{m}%s{e}";
 #endif  // USE_APDS9960_GESTURE
 
 #ifdef USE_APDS9960_COLOR
-const char HTTP_SNS_COLOR_RED[]   PROGMEM = "{s}%s " D_COLOR_RED "{m}%u{e}";
-const char HTTP_SNS_COLOR_GREEN[] PROGMEM = "{s}%s " D_COLOR_GREEN "{m}%u{e}";
-const char HTTP_SNS_COLOR_BLUE[]  PROGMEM = "{s}%s " D_COLOR_BLUE "{m}%u{e}";
 const char HTTP_SNS_CCT[]         PROGMEM = "{s}%s " D_CCT "{m}%u " D_UNIT_KELVIN  "{e}";
 #endif  // USE_APDS9960_COLOR
 
@@ -379,7 +376,7 @@ void calculateColorTemperature(void) {
 
   return;
 }
-#endif  // USE_APDS9960_COLOR 
+#endif  // USE_APDS9960_COLOR
 
 /******************************************************************************\
  * Getters and setters for register values
@@ -1440,7 +1437,7 @@ int16_t readGesture(void) {
     if (gesture_loop_counter == APDS9960_MAX_GESTURE_CYCLES) {  // We will escape after a few loops
       disableGestureSensor();     // stop the sensor to prevent problems with power consumption/blocking and return to the main loop
       APDS9960_overload = true;   // we report this as "long"-gesture
-      AddLog_P(LOG_LEVEL_DEBUG, PSTR("Sensor overload"));
+      AddLog(LOG_LEVEL_DEBUG, PSTR("Sensor overload"));
     }
     gesture_loop_counter += 1;
 
@@ -1456,7 +1453,7 @@ int16_t readGesture(void) {
       fifo_level = I2cRead8(APDS9960_I2C_ADDR, APDS9960_GFLVL);
 
 #ifdef USE_DEBUG_DRIVER
-      AddLog_P2(LOG_LEVEL_DEBUG, PSTR("DRV: FIFO Level : %d"), fifo_level);
+      AddLog(LOG_LEVEL_DEBUG, PSTR("DRV: FIFO Level : %d"), fifo_level);
 #endif  // USE_DEBUG_DRIVER
 
       /* If there's stuff in the FIFO, read it into our data block */
@@ -1474,7 +1471,7 @@ int16_t readGesture(void) {
       for ( i = 0; i < bytes_read; i++ ) {
           ptr += sprintf(ptr, "%02X", fifo_data[i]);
       }
-      AddLog_P2(LOG_LEVEL_DEBUG, PSTR("DRV: FIFO Dump : %s"), output);
+      AddLog(LOG_LEVEL_DEBUG, PSTR("DRV: FIFO Dump : %s"), output);
 #endif  // USE_DEBUG_DRIVER
 
         /* If at least 1 set of data, sort the data into U/D/L/R */
@@ -1748,33 +1745,34 @@ void handleGesture(void) {
   if (isGestureAvailable()) {
     switch (readGesture()) {
       case DIR_UP:
-        AddLog_P(LOG_LEVEL_DEBUG, GESTURE_UP);
+        AddLog(LOG_LEVEL_DEBUG, GESTURE_UP);
         snprintf_P(currentGesture, sizeof(currentGesture), GESTURE_UP);
         break;
       case DIR_DOWN:
-        AddLog_P(LOG_LEVEL_DEBUG, GESTURE_DOWN);
+        AddLog(LOG_LEVEL_DEBUG, GESTURE_DOWN);
         snprintf_P(currentGesture, sizeof(currentGesture), GESTURE_DOWN);
         break;
       case DIR_LEFT:
-        AddLog_P(LOG_LEVEL_DEBUG, GESTURE_LEFT);
+        AddLog(LOG_LEVEL_DEBUG, GESTURE_LEFT);
         snprintf_P(currentGesture, sizeof(currentGesture), GESTURE_LEFT);
         break;
       case DIR_RIGHT:
-        AddLog_P(LOG_LEVEL_DEBUG, GESTURE_RIGHT);
+        AddLog(LOG_LEVEL_DEBUG, GESTURE_RIGHT);
         snprintf_P(currentGesture, sizeof(currentGesture), GESTURE_RIGHT);
         break;
       default:
         if (APDS9960_overload) {
-          AddLog_P(LOG_LEVEL_DEBUG, GESTURE_LONG);
+          AddLog(LOG_LEVEL_DEBUG, GESTURE_LONG);
           snprintf_P(currentGesture, sizeof(currentGesture), GESTURE_LONG);
         } else {
-          AddLog_P(LOG_LEVEL_DEBUG, GESTURE_NONE);
+          AddLog(LOG_LEVEL_DEBUG, GESTURE_NONE);
           snprintf_P(currentGesture, sizeof(currentGesture), GESTURE_NONE);
         }
         break;
     }
     MqttPublishSensor();
   }
+  currentGesture[0] = '\0';
 }
 
 void APDS9960_loop(void) {
@@ -1786,7 +1784,7 @@ void APDS9960_loop(void) {
     enableGestureSensor();
     APDS9960_overload = false;
     Response_P(PSTR("{\"Gesture\":\"On\"}"));
-    MqttPublishPrefixTopic_P(RESULT_OR_TELE, mqtt_data);  // only after the long break we report, that we are online again
+    MqttPublishPrefixTopicRulesProcess_P(RESULT_OR_TELE, TasmotaGlobal.mqtt_data);  // only after the long break we report, that we are online again
     gesture_mode = 1;
   }
 
@@ -1798,7 +1796,7 @@ void APDS9960_loop(void) {
         disableGestureSensor();
         recovery_loop_counter = APDS9960_LONG_RECOVERY;  // long pause after overload/long press - number of stateloops
         Response_P(PSTR("{\"Gesture\":\"Off\"}"));
-        MqttPublishPrefixTopic_P(RESULT_OR_TELE, mqtt_data);
+        MqttPublishPrefixTopicRulesProcess_P(RESULT_OR_TELE, TasmotaGlobal.mqtt_data);
         gesture_mode = 0;
       }
     }
@@ -1814,7 +1812,7 @@ void APDS9960_detect(void) {
 
 #ifdef USE_DEBUG_DRIVER
   // Debug new chip
-  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("DRV: %s Chip %X"), APDS9960_TAG, APDS9960_type);
+  AddLog(LOG_LEVEL_DEBUG, PSTR("DRV: %s Chip %X"), APDS9960_TAG, APDS9960_type);
 #endif  // USE_DEBUG_DRIVER
 
   if (APDS9960_type == APDS9960_CHIPID_1 || APDS9960_type == APDS9960_CHIPID_2 || APDS9960_type == APDS9960_CHIPID_3) {

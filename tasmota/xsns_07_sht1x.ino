@@ -1,7 +1,7 @@
 /*
   xsns_07_sht1x.ino - SHT1x temperature and sensor support for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 #ifdef USE_I2C
 #ifdef USE_SHT
 /*********************************************************************************************\
- * SHT1x - Temperature and Humidy
+ * SHT1x - Temperature and Humidity
  *
  * Reading temperature and humidity takes about 320 milliseconds!
  * Source: Marinus vd Broek https://github.com/ESP8266nu/ESPEasy
@@ -37,8 +37,8 @@ enum {
   SHT1X_CMD_SOFT_RESET    = B00011110
 };
 
-uint8_t sht_sda_pin;
-uint8_t sht_scl_pin;
+int8_t sht_sda_pin;
+int8_t sht_scl_pin;
 uint8_t sht_type = 0;
 char sht_types[] = "SHT1X";
 uint8_t sht_valid = 0;
@@ -86,7 +86,7 @@ bool ShtSendCommand(const uint8_t cmd)
   }
   if (ackerror) {
 //    sht_type = 0;
-    AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_SHT1 D_SENSOR_DID_NOT_ACK_COMMAND));
+    AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_SHT1 D_SENSOR_DID_NOT_ACK_COMMAND));
   }
   return (!ackerror);
 }
@@ -100,7 +100,7 @@ bool ShtAwaitResult(void)
     }
     delay(20);
   }
-  AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_SHT1 D_SENSOR_BUSY));
+  AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_SHT1 D_SENSOR_BUSY));
 //  sht_type = 0;
   return false;
 }
@@ -163,7 +163,7 @@ void ShtDetect(void)
   sht_scl_pin = Pin(GPIO_I2C_SCL);
   if (ShtRead()) {
     sht_type = 1;
-    AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_I2C D_SHT1X_FOUND));
+    AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_I2C D_SHT1X_FOUND));
   } else {
     Wire.begin(sht_sda_pin, sht_scl_pin);
     sht_type = 0;
@@ -172,7 +172,7 @@ void ShtDetect(void)
 
 void ShtEverySecond(void)
 {
-  if (!(uptime %4)) {  // Every 4 seconds
+  if (!(TasmotaGlobal.uptime %4)) {  // Every 4 seconds
     // 344mS
     if (!ShtRead()) {
       AddLogMissed(sht_types, sht_valid);
@@ -183,7 +183,7 @@ void ShtEverySecond(void)
 void ShtShow(bool json)
 {
   if (sht_valid) {
-    TempHumDewShow(json, (0 == tele_period), sht_types, sht_temperature, sht_humidity);
+    TempHumDewShow(json, (0 == TasmotaGlobal.tele_period), sht_types, sht_temperature, sht_humidity);
   }
 }
 

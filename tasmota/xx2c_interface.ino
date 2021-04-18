@@ -1,7 +1,7 @@
 /*
   xx2c_interface.ino - I2c interface support for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -414,7 +414,7 @@ const uint8_t kI2cList[] = {
 
 bool I2cEnabled(uint32_t i2c_index)
 {
-  return (i2c_flg && bitRead(Settings.i2c_drivers[i2c_index / 32], i2c_index % 32));
+  return (TasmotaGlobal.i2c_enabled && bitRead(Settings.i2c_drivers[i2c_index / 32], i2c_index % 32));
 }
 
 void I2cDriverState(void)

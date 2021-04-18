@@ -1,7 +1,7 @@
 /*
   xnrg_04_mcp39f501.ino - MCP39F501 energy sensor support for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -464,8 +464,10 @@ void McpParseData(void)
     } else {
       Energy.current[0] = (float)mcp_current_rms / 10000;
     }
+/*
   } else {  // Powered off
     Energy.data_valid[0] = ENERGY_WATCHDOG;
+*/
   }
 }
 
@@ -484,15 +486,15 @@ void McpSerialInput(void)
     AddLogBuffer(LOG_LEVEL_DEBUG_MORE, (uint8_t*)mcp_buffer, mcp_byte_counter);
 
     if (MCP_BUFFER_SIZE == mcp_byte_counter) {
-//      AddLog_P(LOG_LEVEL_DEBUG, PSTR("MCP: Overflow"));
+//      AddLog(LOG_LEVEL_DEBUG, PSTR("MCP: Overflow"));
     }
     else if (1 == mcp_byte_counter) {
       if (MCP_ERROR_CRC == mcp_buffer[0]) {
-//        AddLog_P(LOG_LEVEL_DEBUG, PSTR("MCP: Send " D_CHECKSUM_FAILURE));
+//        AddLog(LOG_LEVEL_DEBUG, PSTR("MCP: Send " D_CHECKSUM_FAILURE));
         mcp_timeout = 0;
       }
       else if (MCP_ERROR_NAK == mcp_buffer[0]) {
-//        AddLog_P(LOG_LEVEL_DEBUG, PSTR("MCP: NAck"));
+//        AddLog(LOG_LEVEL_DEBUG, PSTR("MCP: NAck"));
         mcp_timeout = 0;
       }
     }
@@ -500,7 +502,7 @@ void McpSerialInput(void)
       if (mcp_byte_counter == mcp_buffer[1]) {
 
         if (McpChecksum((uint8_t *)mcp_buffer) != mcp_buffer[mcp_byte_counter -1]) {
-          AddLog_P(LOG_LEVEL_DEBUG, PSTR("MCP: " D_CHECKSUM_FAILURE));
+          AddLog(LOG_LEVEL_DEBUG, PSTR("MCP: " D_CHECKSUM_FAILURE));
         } else {
           if (5 == mcp_buffer[1]) { McpAddressReceive(); }
           if (25 == mcp_buffer[1]) { McpParseData(); }
@@ -566,13 +568,14 @@ void McpSnsInit(void)
   if (McpSerial->begin(MCP_BAUDRATE)) {
     if (McpSerial->hardwareSerial()) {
       ClaimSerial();
-      mcp_buffer = serial_in_buffer;  // Use idle serial buffer to save RAM
+      mcp_buffer = TasmotaGlobal.serial_in_buffer;  // Use idle serial buffer to save RAM
     } else {
       mcp_buffer = (char*)(malloc(MCP_BUFFER_SIZE));
     }
     DigitalWrite(GPIO_MCP39F5_RST, 0, 1);  // MCP enable
+    Energy.use_overtemp = true;            // Use global temperature for overtemp detection
   } else {
-    energy_flg = ENERGY_NONE;
+    TasmotaGlobal.energy_driver = ENERGY_NONE;
   }
 }
 
@@ -586,7 +589,7 @@ void McpDrvInit(void)
     mcp_calibrate = 0;
     mcp_timeout = 2;               // Initial wait
     mcp_init = 2;                  // Initial setup steps
-    energy_flg = XNRG_04;
+    TasmotaGlobal.energy_driver = XNRG_04;
   }
 }
 

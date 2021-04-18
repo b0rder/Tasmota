@@ -7,7 +7,7 @@
   between a secondary, user-allocated stack on the heap and the real
   stack.
 
-  Copyright (c) 2017 Earle F. Philhower, III. All rights reserved.
+  Copyright (C) 2021  Earle F. Philhower, III. All rights reserved.
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -52,7 +52,7 @@ extern uint32_t stack_thunk_light_refcnt;
 
 // Thunking macro
 #define make_stack_thunk_light(fcnToThunk) \
-__asm("\n\
+__asm__("\n\
 .text\n\
 .literal_position\n\
 .literal .LC_STACK_VALUE"#fcnToThunk", 0xdeadbeef\n\

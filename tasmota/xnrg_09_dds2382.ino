@@ -1,7 +1,7 @@
 /*
   xnrg_09_dds2382.ino - Hiking DDS238-2 Modbus energy meter support for Tasmota
 
-  Copyright (C) 2020  Matteo Campanella - based on the work of Gennaro Tortone
+  Copyright (C) 2021  Matteo Campanella - based on the work of Gennaro Tortone
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ void Dds2382EverySecond(void)
     AddLogBuffer(LOG_LEVEL_DEBUG_MORE, buffer, Dds2382Modbus->ReceiveCount());
 
     if (error) {
-      AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "DDS2382 response error %d"), error);
+      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DEBUG "DDS2382 response error %d"), error);
     } else {
       Energy.data_valid[0] = 0;
 
@@ -74,7 +74,7 @@ void Dds2382EverySecond(void)
       if (Settings.flag3.dds2382_model) {  // SetOption71 - Select different Modbus registers for Active Energy (#6531)
         offset = 19;
       }
-      Energy.export_active = (float)((buffer[offset] << 24) + (buffer[offset +1] << 16) + (buffer[offset +2] << 8) + buffer[offset +3]) / 100.0;    // 429496.729 kW
+      Energy.export_active[0] = (float)((buffer[offset] << 24) + (buffer[offset +1] << 16) + (buffer[offset +2] << 8) + buffer[offset +3]) / 100.0;    // 429496.729 kW
       float import_active = (float)((buffer[offset +4] << 24) + (buffer[offset +5] << 16) + (buffer[offset +6] << 8) + buffer[offset +7]) / 100.0;  // 429496.729 kW
 
       EnergyUpdateTotal(import_active, true);  // 484.708 kWh
@@ -96,14 +96,14 @@ void Dds2382SnsInit(void)
   if (result) {
     if (2 == result) { ClaimSerial(); }
   } else {
-    energy_flg = ENERGY_NONE;
+    TasmotaGlobal.energy_driver = ENERGY_NONE;
   }
 }
 
 void Dds2382DrvInit(void)
 {
   if (PinUsed(GPIO_DDS2382_RX) && PinUsed(GPIO_DDS2382_TX)) {
-    energy_flg = XNRG_09;
+    TasmotaGlobal.energy_driver = XNRG_09;
   }
 }
 
@@ -117,7 +117,7 @@ bool Xnrg09(uint8_t function)
 
   switch (function) {
     case FUNC_ENERGY_EVERY_SECOND:
-      if (uptime > 4) { Dds2382EverySecond(); }
+      if (TasmotaGlobal.uptime > 4) { Dds2382EverySecond(); }
       break;
     case FUNC_INIT:
       Dds2382SnsInit();

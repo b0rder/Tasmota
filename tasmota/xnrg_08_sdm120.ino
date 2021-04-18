@@ -1,7 +1,7 @@
 /*
   xnrg_08_sdm120.ino - Eastron SDM120-Modbus energy meter support for Tasmota
 
-  Copyright (C) 2020  Gennaro Tortone and Theo Arends
+  Copyright (C) 2021  Gennaro Tortone and Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -83,7 +83,7 @@ void SDM120Every250ms(void)
     AddLogBuffer(LOG_LEVEL_DEBUG_MORE, buffer, Sdm120Modbus->ReceiveCount());
 
     if (error) {
-      AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SDM: SDM120 error %d"), error);
+      AddLog(LOG_LEVEL_DEBUG, PSTR("SDM: SDM120 error %d"), error);
     } else {
       Energy.data_valid[0] = 0;
 
@@ -134,7 +134,7 @@ void SDM120Every250ms(void)
           break;
 
         case 9:
-          Energy.export_active = value;    // 6.216 kWh
+          Energy.export_active[0] = value;    // 6.216 kWh
           break;
 
         case 10:
@@ -181,14 +181,14 @@ void Sdm120SnsInit(void)
   if (result) {
     if (2 == result) { ClaimSerial(); }
   } else {
-    energy_flg = ENERGY_NONE;
+    TasmotaGlobal.energy_driver = ENERGY_NONE;
   }
 }
 
 void Sdm120DrvInit(void)
 {
   if (PinUsed(GPIO_SDM120_RX) && PinUsed(GPIO_SDM120_TX)) {
-    energy_flg = XNRG_08;
+    TasmotaGlobal.energy_driver = XNRG_08;
   }
 }
 
@@ -242,7 +242,7 @@ bool Xnrg08(uint8_t function)
 
   switch (function) {
     case FUNC_EVERY_250_MSECOND:
-      if (uptime > 4) { SDM120Every250ms(); }
+      SDM120Every250ms();
       break;
     case FUNC_JSON_APPEND:
       Sdm220Show(1);

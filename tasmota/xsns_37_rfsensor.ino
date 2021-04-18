@@ -1,7 +1,7 @@
 /*
   xsns_37_rfsensor.ino - RF sensor receiver for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -251,7 +251,7 @@ void RfSnsAnalyzeTheov2(void)
     break;
   }
 
-  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("RFS: TheoV2, ChkCalc %d, Chksum %d, id %d, Type %d, Ch %d, Volt %d, BattLo %d, Pld1 %d, Pld2 %d"),
+  AddLog_P(LOG_LEVEL_DEBUG, PSTR("RFS: TheoV2, ChkCalc %d, Chksum %d, id %d, Type %d, Ch %d, Volt %d, BattLo %d, Pld1 %d, Pld2 %d"),
     chksum, Checksum, id, Type, Channel +1, Payload3, (Voltage & 0x80) >> 7, Payload1, Payload2);
 }
 
@@ -272,22 +272,21 @@ void RfSnsTheoV2Show(bool json)
             sensor, GetDT(rfsns_theo_v2_t1[i].time).c_str(), voltage);
         }
       } else {
-        char temperature[33];
-        dtostrfd(ConvertTemp((float)rfsns_theo_v2_t1[i].temp / 100), Settings.flag2.temperature_resolution, temperature);
+        float temp = ConvertTemp((float)rfsns_theo_v2_t1[i].temp / 100);
 
         if (json) {
-          ResponseAppend_P(PSTR(",\"%s\":{\"" D_JSON_TEMPERATURE "\":%s,\"" D_JSON_ILLUMINANCE "\":%d,\"" D_JSON_VOLTAGE "\":%s}"),
-            sensor, temperature, rfsns_theo_v2_t1[i].lux, voltage);
+          ResponseAppend_P(PSTR(",\"%s\":{\"" D_JSON_TEMPERATURE "\":%*_f,\"" D_JSON_ILLUMINANCE "\":%d,\"" D_JSON_VOLTAGE "\":%s}"),
+            sensor, Settings.flag2.temperature_resolution, &temp, rfsns_theo_v2_t1[i].lux, voltage);
 #ifdef USE_DOMOTICZ
-          if ((0 == tele_period) && !sensor_once) {
-            DomoticzSensor(DZ_TEMP, temperature);
+          if ((0 == TasmotaGlobal.tele_period) && !sensor_once) {
+            DomoticzFloatSensor(DZ_TEMP, temp);
             DomoticzSensor(DZ_ILLUMINANCE, rfsns_theo_v2_t1[i].lux);
             sensor_once = true;
           }
 #endif  // USE_DOMOTICZ
 #ifdef USE_WEBSERVER
         } else {
-          WSContentSend_PD(HTTP_SNS_TEMP, sensor, temperature, TempUnit());
+          WSContentSend_Temp(sensor, temp);
           WSContentSend_PD(HTTP_SNS_ILLUMINANCE, sensor, rfsns_theo_v2_t1[i].lux);
 #endif  // USE_WEBSERVER
         }
@@ -317,7 +316,7 @@ void RfSnsTheoV2Show(bool json)
           ResponseAppendTHD(temp, humi);
           ResponseAppend_P(PSTR(",\"" D_JSON_VOLTAGE "\":%s}"), voltage);
 
-          if ((0 == tele_period) && !sensor_once) {
+          if ((0 == TasmotaGlobal.tele_period) && !sensor_once) {
 #ifdef USE_DOMOTICZ
             DomoticzTempHumPressureSensor(temp, humi);  //
 #endif  // USE_DOMOTICZ
@@ -503,7 +502,7 @@ void RfSnsAnalyzeAlectov2()
     rfsns_alecto_v2->wdir = data[8] & 0xf;
   }
 
-  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("RFS: " D_ALECTOV2 ", ChkCalc %d, Chksum %d, rc %d, Temp %d, Hum %d, Rain %d, Wind %d, Gust %d, Dir %d, Factor %s"),
+  AddLog_P(LOG_LEVEL_DEBUG, PSTR("RFS: " D_ALECTOV2 ", ChkCalc %d, Chksum %d, rc %d, Temp %d, Hum %d, Rain %d, Wind %d, Gust %d, Dir %d, Factor %s"),
     checksumcalc, checksum, rc, ((data[1] & 0x3) * 256 + data[2]) - 400, data[3], (data[6] * 256) + data[7], data[4], data[5], data[8] & 0xf, dtostrfd(factor, 3, buf1));
 }
 
@@ -573,7 +572,7 @@ void RfSnsAlectoV2Show(bool json)
         ResponseAppendTHD(temp, humi);
         ResponseAppend_P(PSTR(",\"Rain\":%s,\"Wind\":%s,\"Gust\":%s%s}"), rain, wind, gust, (rfsns_alecto_v2->type) ? direction : "");
 
-        if (0 == tele_period) {
+        if (0 == TasmotaGlobal.tele_period) {
 #ifdef USE_DOMOTICZ
         // Use a rules to send data to Domoticz where also a local BMP280 is connected:
         // on tele-alectov2#temperature do var1 %value% endon on tele-alectov2#humidity do var2 %value% endon on tele-bmp280#pressure do publish domoticz/in {"idx":68,"svalue":"%var1%;%var2%;0;%value%;0"} endon
@@ -619,7 +618,7 @@ void RfSnsInit(void)
 
 void RfSnsAnalyzeRawSignal(void)
 {
-  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("RFS: Pulses %d"), (int)rfsns_raw_signal->Number);
+  AddLog(LOG_LEVEL_DEBUG, PSTR("RFS: Pulses %d"), (int)rfsns_raw_signal->Number);
 
 #ifdef USE_THEO_V2
     RfSnsAnalyzeTheov2();
@@ -665,7 +664,7 @@ bool Xsns37(uint8_t function)
             RfSnsAnalyzeRawSignal();
           }
         }
-        ssleep = 0;
+        TasmotaGlobal.sleep = 0;
         break;
       case FUNC_EVERY_SECOND:
         RfSnsEverySecond();

@@ -1,7 +1,7 @@
 /*
   xsns_09_bmp.ino - BMP pressure, temperature, humidity and gas sensor support for Tasmota
 
-  Copyright (C) 2020  Heiko Krupp and Theo Arends
+  Copyright (C) 2021  Heiko Krupp and Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -517,11 +517,7 @@ void BmpShow(bool json)
 {
   for (uint32_t bmp_idx = 0; bmp_idx < bmp_count; bmp_idx++) {
     if (bmp_sensors[bmp_idx].bmp_type) {
-      float bmp_sealevel = 0.0;
-      if (bmp_sensors[bmp_idx].bmp_pressure != 0.0) {
-        bmp_sealevel = (bmp_sensors[bmp_idx].bmp_pressure / FastPrecisePow(1.0 - ((float)Settings.altitude / 44330.0), 5.255)) - 21.6;
-        bmp_sealevel = ConvertPressure(bmp_sealevel);
-      }
+      float bmp_sealevel = ConvertPressureForSeaLevel(bmp_sensors[bmp_idx].bmp_pressure);
       float bmp_temperature = ConvertTemp(bmp_sensors[bmp_idx].bmp_temperature);
       float bmp_pressure = ConvertPressure(bmp_sensors[bmp_idx].bmp_pressure);
 
@@ -531,8 +527,6 @@ void BmpShow(bool json)
         snprintf_P(name, sizeof(name), PSTR("%s%c%02X"), name, IndexSeparator(), bmp_sensors[bmp_idx].bmp_address);  // BMXXXX-XX
       }
 
-      char temperature[33];
-      dtostrfd(bmp_temperature, Settings.flag2.temperature_resolution, temperature);
       char pressure[33];
       dtostrfd(bmp_pressure, Settings.flag2.pressure_resolution, pressure);
       char sea_pressure[33];
@@ -558,20 +552,20 @@ void BmpShow(bool json)
         char json_gas[40];
         snprintf_P(json_gas, sizeof(json_gas), PSTR(",\"" D_JSON_GAS "\":%s"), gas_resistance);
 
-        ResponseAppend_P(PSTR(",\"%s\":{\"" D_JSON_TEMPERATURE "\":%s%s,\"" D_JSON_PRESSURE "\":%s%s%s}"),
+        ResponseAppend_P(PSTR(",\"%s\":{\"" D_JSON_TEMPERATURE "\":%*_f%s,\"" D_JSON_PRESSURE "\":%s%s%s}"),
           name,
-          temperature,
+          Settings.flag2.temperature_resolution, &bmp_temperature,
           (bmp_sensors[bmp_idx].bmp_model >= 2) ? json_humidity : "",
           pressure,
           (Settings.altitude != 0) ? json_sealevel : "",
           (bmp_sensors[bmp_idx].bmp_model >= 3) ? json_gas : "");
 #else
-        ResponseAppend_P(PSTR(",\"%s\":{\"" D_JSON_TEMPERATURE "\":%s%s,\"" D_JSON_PRESSURE "\":%s%s}"),
-          name, temperature, (bmp_sensors[bmp_idx].bmp_model >= 2) ? json_humidity : "", pressure, (Settings.altitude != 0) ? json_sealevel : "");
+        ResponseAppend_P(PSTR(",\"%s\":{\"" D_JSON_TEMPERATURE "\":%*_f%s,\"" D_JSON_PRESSURE "\":%s%s}"),
+          name, Settings.flag2.temperature_resolution, &bmp_temperature, (bmp_sensors[bmp_idx].bmp_model >= 2) ? json_humidity : "", pressure, (Settings.altitude != 0) ? json_sealevel : "");
 #endif  // USE_BME680
 
 #ifdef USE_DOMOTICZ
-        if ((0 == tele_period) && (0 == bmp_idx)) {  // We want the same first sensor to report to Domoticz in case a read is missed
+        if ((0 == TasmotaGlobal.tele_period) && (0 == bmp_idx)) {  // We want the same first sensor to report to Domoticz in case a read is missed
           DomoticzTempHumPressureSensor(bmp_temperature, bmp_humidity, bmp_pressure);
 #ifdef USE_BME680
           if (bmp_sensors[bmp_idx].bmp_model >= 3) { DomoticzSensor(DZ_AIRQUALITY, (uint32_t)bmp_sensors[bmp_idx].bmp_gas_resistance); }
@@ -580,7 +574,7 @@ void BmpShow(bool json)
 #endif  // USE_DOMOTICZ
 
 #ifdef USE_KNX
-        if (0 == tele_period) {
+        if (0 == TasmotaGlobal.tele_period) {
           KnxSensor(KNX_TEMPERATURE, bmp_temperature);
           KnxSensor(KNX_HUMIDITY, bmp_humidity);
         }
@@ -588,7 +582,7 @@ void BmpShow(bool json)
 
 #ifdef USE_WEBSERVER
       } else {
-        WSContentSend_PD(HTTP_SNS_TEMP, name, temperature, TempUnit());
+        WSContentSend_Temp(name, bmp_temperature);
         if (bmp_sensors[bmp_idx].bmp_model >= 2) {
           WSContentSend_PD(HTTP_SNS_HUM, name, humidity);
           WSContentSend_PD(HTTP_SNS_DEW, name, dewpoint, TempUnit());
@@ -613,15 +607,17 @@ void BmpShow(bool json)
 
 void BMP_EnterSleep(void)
 {
-  for (uint32_t bmp_idx = 0; bmp_idx < bmp_count; bmp_idx++) {
-    switch (bmp_sensors[bmp_idx].bmp_type) {
-      case BMP180_CHIPID:
-      case BMP280_CHIPID:
-      case BME280_CHIPID:
-        I2cWrite8(bmp_sensors[bmp_idx].bmp_address, BMP_REGISTER_RESET, BMP_CMND_RESET);
-        break;
-      default:
-        break;
+  if (DeepSleepEnabled()) {
+    for (uint32_t bmp_idx = 0; bmp_idx < bmp_count; bmp_idx++) {
+      switch (bmp_sensors[bmp_idx].bmp_type) {
+        case BMP180_CHIPID:
+        case BMP280_CHIPID:
+        case BME280_CHIPID:
+          I2cWrite8(bmp_sensors[bmp_idx].bmp_address, BMP_REGISTER_RESET, BMP_CMND_RESET);
+          break;
+        default:
+          break;
+      }
     }
   }
 }

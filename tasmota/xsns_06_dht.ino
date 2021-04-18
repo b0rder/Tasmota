@@ -1,7 +1,7 @@
 /*
   xsns_06_dht.ino - DHTxx, AM23xx and SI7021 temperature and humidity sensor support for Tasmota
 
-  Copyright (C) 2020  Theo Arends
+  Copyright (C) 2021  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 
 #ifdef USE_DHT
 /*********************************************************************************************\
- * DHT11, AM2301 (DHT21, DHT22, AM2302, AM2321), SI7021 - Temperature and Humidy
+ * DHT11, AM2301 (DHT21, DHT22, AM2302, AM2321), SI7021 - Temperature and Humidity
  *
  * Reading temperature or humidity takes about 250 milliseconds!
  * Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
@@ -39,7 +39,7 @@ bool dht_active = true;                       // DHT configured
 bool dht_dual_mode = false;                   // Single pin mode
 
 struct DHTSTRUCT {
-  uint8_t  pin;
+  int8_t   pin;
   uint8_t  type;
   uint8_t  lastresult;
   char     stype[12];
@@ -52,7 +52,7 @@ bool DhtWaitState(uint32_t sensor, uint32_t level)
   unsigned long timeout = micros() + 100;
   while (digitalRead(Dht[sensor].pin) != level) {
     if (TimeReachedUsec(timeout)) {
-      PrepLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_DHT D_TIMEOUT_WAITING_FOR " %s " D_PULSE),
+      AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DHT D_TIMEOUT_WAITING_FOR " %s " D_PULSE),
         (level) ? D_START_SIGNAL_HIGH : D_START_SIGNAL_LOW);
       return false;
     }
@@ -77,7 +77,8 @@ bool DhtRead(uint32_t sensor)
       delay(19);  // minimum 18ms
       break;
     case GPIO_DHT22:                                    // DHT21, DHT22, AM2301, AM2302, AM2321
-      delay(2);   // minimum 1ms
+//      delay(2);   // minimum 1ms
+      delayMicroseconds(2000);                          // See https://github.com/arendst/Tasmota/pull/7468#issuecomment-647067015
       break;
     case GPIO_SI7021:                                   // iTead SI7021
       delayMicroseconds(500);
@@ -148,7 +149,7 @@ bool DhtRead(uint32_t sensor)
   uint8_t checksum = (dht_data[0] + dht_data[1] + dht_data[2] + dht_data[3]) & 0xFF;
   if (dht_data[4] != checksum) {
     char hex_char[15];
-    AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_DHT D_CHECKSUM_FAILURE " %s =? %02X"),
+    AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DHT D_CHECKSUM_FAILURE " %s =? %02X"),
       ToHex_P(dht_data, 5, hex_char, sizeof(hex_char), ' '), checksum);
     return false;
   }
@@ -156,21 +157,40 @@ bool DhtRead(uint32_t sensor)
   float temperature = NAN;
   float humidity = NAN;
   switch (Dht[sensor].type) {
-    case GPIO_DHT11:
+    case GPIO_DHT11:                                    // DHT11
       humidity = dht_data[0];
+/*
+      // DHT11 no negative temp:
       temperature = dht_data[2] + ((float)dht_data[3] * 0.1f);  // Issue #3164
+*/
+      // DHT11 (Adafruit):
+      temperature = dht_data[2];
+      if (dht_data[3] & 0x80) {
+        temperature = -1 - temperature;
+      }
+      temperature += (dht_data[3] & 0x0f) * 0.1f;
+/*
+      // DHT12 (Adafruit):
+      temperature = dht_data[2];
+      temperature += (dht_data[3] & 0x0f) * 0.1f;
+      if (dht_data[2] & 0x80) {
+        temperature *= -1;
+      }
+*/
       break;
-    case GPIO_DHT22:
-    case GPIO_SI7021:
+    case GPIO_DHT22:                                    // DHT21, DHT22, AM2301, AM2302, AM2321
+    case GPIO_SI7021:                                   // iTead SI7021
       humidity = ((dht_data[0] << 8) | dht_data[1]) * 0.1;
-      temperature = (((dht_data[2] & 0x7F) << 8 ) | dht_data[3]) * 0.1;
+      // DHT21/22 (Adafruit):
+      temperature = ((int16_t)(dht_data[2] & 0x7F) << 8 ) | dht_data[3];
+      temperature *= 0.1f;
       if (dht_data[2] & 0x80) {
         temperature *= -1;
       }
       break;
   }
   if (isnan(temperature) || isnan(humidity)) {
-    AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_DHT "Invalid NAN reading"));
+    AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DHT "Invalid NAN reading"));
     return false;
   }
 
@@ -187,12 +207,12 @@ bool DhtRead(uint32_t sensor)
 
 bool DhtPinState()
 {
-  if ((XdrvMailbox.index >= GPIO_DHT11) && (XdrvMailbox.index <= GPIO_SI7021)) {
+  if ((XdrvMailbox.index >= AGPIO(GPIO_DHT11)) && (XdrvMailbox.index <= AGPIO(GPIO_SI7021))) {
     if (dht_sensors < DHT_MAX_SENSORS) {
       Dht[dht_sensors].pin = XdrvMailbox.payload;
-      Dht[dht_sensors].type = XdrvMailbox.index;
+      Dht[dht_sensors].type = BGPIO(XdrvMailbox.index);
       dht_sensors++;
-      XdrvMailbox.index = GPIO_DHT11;
+      XdrvMailbox.index = AGPIO(GPIO_DHT11);
     } else {
       XdrvMailbox.index = 0;
     }
@@ -219,7 +239,7 @@ void DhtInit(void)
         snprintf_P(Dht[i].stype, sizeof(Dht[i].stype), PSTR("%s%c%02d"), Dht[i].stype, IndexSeparator(), Dht[i].pin);
       }
     }
-    AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_DHT "(v5) " D_SENSORS_FOUND " %d"), dht_sensors);
+    AddLog(LOG_LEVEL_DEBUG, PSTR(D_LOG_DHT "(v5) " D_SENSORS_FOUND " %d"), dht_sensors);
   } else {
     dht_active = false;
   }
@@ -227,7 +247,7 @@ void DhtInit(void)
 
 void DhtEverySecond(void)
 {
-  if (uptime &1) {  // Every 2 seconds
+  if (TasmotaGlobal.uptime &1) {  // Every 2 seconds
     for (uint32_t sensor = 0; sensor < dht_sensors; sensor++) {
       // DHT11 and AM2301 25mS per sensor, SI7021 5mS per sensor
       if (!DhtRead(sensor)) {
@@ -244,7 +264,7 @@ void DhtEverySecond(void)
 void DhtShow(bool json)
 {
   for (uint32_t i = 0; i < dht_sensors; i++) {
-    TempHumDewShow(json, ((0 == tele_period) && (0 == i)), Dht[i].stype, Dht[i].t, Dht[i].h);
+    TempHumDewShow(json, ((0 == TasmotaGlobal.tele_period) && (0 == i)), Dht[i].stype, Dht[i].t, Dht[i].h);
   }
 }
 

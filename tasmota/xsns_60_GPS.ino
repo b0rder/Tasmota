@@ -1,7 +1,7 @@
 /*
   xsns_60_GPS.ino - GPS UBLOX support for Tasmota
 
-  Copyright (C) 2020  Theo Arends, Christian Baars and Adrian Scillato
+  Copyright (C) 2021  Theo Arends, Christian Baars and Adrian Scillato
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -338,17 +338,6 @@ void UBXsendCFGLine(uint8_t _line)
   DEBUG_SENSOR_LOG(PSTR("UBX: send line %u of UBLOX_INIT"), _line);
 }
 
-void UBXTriggerTele(void)
-{
-  mqtt_data[0] = '\0';
-  if (MqttShowSensor()) {
-    MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);
-#ifdef USE_RULES
-    RulesTeleperiod();  // Allow rule based HA messages
-#endif  // USE_RULES
-  }
-}
-
 /********************************************************************************************/
 
 void UBXDetect(void)
@@ -380,7 +369,7 @@ void UBXDetect(void)
 
   UBX.state.log_interval = 10;  // 1 second
   UBX.mode.send_UI_only = true; // send UI data ...
-  UBXTriggerTele();             // ... once at after start
+  MqttPublishTeleperiodSensor();  // ... once at after start
 }
 
 uint32_t UBXprocessGPS()
@@ -490,7 +479,7 @@ void UBXsendHeader(void)
 {
   Webserver->setContentLength(CONTENT_LENGTH_UNKNOWN);
   Webserver->sendHeader(F("Content-Disposition"), F("attachment; filename=TASMOTA.gpx"));
-  WSSend(200, CT_STREAM, F(
+  WSSend(200, CT_APP_STREAM, F(
     "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\r\n"
     "<GPX version=\"1.1\" creator=\"TASMOTA\" xmlns=\"http://www.topografix.com/GPX/1/1\" \r\n"
     "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\r\n"
@@ -573,17 +562,17 @@ void UBXSelectMode(uint16_t mode)
       break;
     case 4:
       Flog->startRecording(true);
-      AddLog_P(LOG_LEVEL_INFO, PSTR("UBX: start recording - appending"));
+      AddLog(LOG_LEVEL_INFO, PSTR("UBX: start recording - appending"));
       break;
     case 5:
       Flog->startRecording(false);
-      AddLog_P(LOG_LEVEL_INFO, PSTR("UBX: start recording - new log"));
+      AddLog(LOG_LEVEL_INFO, PSTR("UBX: start recording - new log"));
       break;
     case 6:
       if(Flog->recording == true){
         Flog->stopRecording();
       }
-      AddLog_P(LOG_LEVEL_INFO, PSTR("UBX: stop recording"));
+      AddLog(LOG_LEVEL_INFO, PSTR("UBX: stop recording"));
       break;
 #endif //USE_FLOG
     case 7:
@@ -627,7 +616,7 @@ void UBXSelectMode(uint16_t mode)
       break;
   }
   UBX.mode.send_UI_only = true;
-  UBXTriggerTele();
+  MqttPublishTeleperiodSensor();
 }
 
 /********************************************************************************************/
@@ -650,7 +639,7 @@ bool UBXHandlePOSLLH()
     UBX.state.last_vAcc = UBX.Message.navPosllh.vAcc;
     UBX.state.last_hAcc = UBX.Message.navPosllh.hAcc;
     if (UBX.mode.send_when_new) {
-      UBXTriggerTele();
+      MqttPublishTeleperiodSensor();
     }
     if (UBX.mode.runningNTP){ // after receiving pos-data at least once -> go to pure NTP-mode
       UBXsendCFGLine(7); //NAV-POSLLH off
@@ -689,7 +678,7 @@ void UBXHandleTIME()
       gpsTime.second = UBX.Message.navTime.sec;
       UBX.rec_buffer.values.time = MakeTime(gpsTime);
       if (UBX.mode.forceUTCupdate || Rtc.user_time_entry == false){
-        AddLog_P(LOG_LEVEL_INFO, PSTR("UBX: UTC-Time is valid, set system time"));
+        AddLog(LOG_LEVEL_INFO, PSTR("UBX: UTC-Time is valid, set system time"));
         Rtc.utc_time = UBX.rec_buffer.values.time;
       }
       Rtc.user_time_entry = true;
@@ -702,7 +691,7 @@ void UBXHandleOther(void)
   if (UBX.state.non_empty_loops>6) {  // we expect only 4-5 non-empty loops in a row, could change with other sensor speed (Hz)
     if(UBX.mode.runningVPort) return;
     UBXinitCFG();                     // this should only happen with lots of NMEA-messages, but it is only a guess!!
-    AddLog_P(LOG_LEVEL_ERROR, PSTR("UBX: possible device-reset, will re-init"));
+    AddLog(LOG_LEVEL_ERROR, PSTR("UBX: possible device-reset, will re-init"));
     UBXSerial->flush();
     UBX.state.non_empty_loops = 0;
   }
@@ -912,7 +901,7 @@ bool Xsns60(uint8_t function)
         break;
 #ifdef USE_FLOG
       case FUNC_WEB_ADD_HANDLER:
-        Webserver->on("/UBX", UBXsendFile);
+        WebServer_on(PSTR("/UBX"), UBXsendFile);
         break;
 #endif //USE_FLOG
       case FUNC_JSON_APPEND:

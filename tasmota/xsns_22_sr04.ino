@@ -1,7 +1,7 @@
 /*
   xsns_22_sr04.ino - SR04 ultrasonic sensor support for Tasmota
 
-  Copyright (C) 2020  Nuno Ferreira and Theo Arends
+  Copyright (C) 2021  Nuno Ferreira and Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -29,7 +29,11 @@
  * - https://www.dfrobot.com/wiki/index.php/Weather-proof_Ultrasonic_Sensor_SKU_:_SEN0207
 \*********************************************************************************************/
 
-#define XSNS_22              22
+#define XSNS_22                   22
+
+#ifndef SR04_MAX_SENSOR_DISTANCE
+#define SR04_MAX_SENSOR_DISTANCE  500
+#endif
 
 uint8_t sr04_type = 1;
 real64_t distance;
@@ -47,7 +51,7 @@ uint8_t Sr04TModeDetect(void)
   sonar_serial = new TasmotaSerial(sr04_echo_pin, sr04_trig_pin, 1);
 
   if (sonar_serial->begin(9600,1)) {
-    DEBUG_SENSOR_LOG(PSTR("SR04: Detect mode"));
+    DEBUG_SENSOR_LOG(PSTR("SR4: Detect mode"));
 
     if (sr04_trig_pin != -1) {
       sr04_type = (Sr04TMiddleValue(Sr04TMode3Distance(), Sr04TMode3Distance(), Sr04TMode3Distance()) != NO_ECHO) ? 3 : 1;
@@ -64,14 +68,14 @@ uint8_t Sr04TModeDetect(void)
     if (-1 == sr04_trig_pin) {
       sr04_trig_pin = Pin(GPIO_SR04_ECHO);  // if GPIO_SR04_TRIG is not configured use single PIN mode with GPIO_SR04_ECHO only
     }
-    sonar = new NewPing(sr04_trig_pin, sr04_echo_pin, 300);
+    sonar = new NewPing(sr04_trig_pin, sr04_echo_pin, SR04_MAX_SENSOR_DISTANCE);
   } else {
     if (sonar_serial->hardwareSerial()) {
       ClaimSerial();
     }
   }
 
-  AddLog_P2(LOG_LEVEL_INFO,PSTR("SR04: Mode %d"), sr04_type);
+  AddLog(LOG_LEVEL_INFO,PSTR("SR4: Mode %d"), sr04_type);
   return sr04_type;
 }
 
@@ -106,7 +110,7 @@ uint16_t Sr04TMode2Distance(void)
   const char startByte = 0xff;
 
   if (!sonar_serial->find(startByte)) {
-      //DEBUG_SENSOR_LOG(PSTR("SR04: No start byte"));
+      //DEBUG_SENSOR_LOG(PSTR("SR4: No start byte"));
       return NO_ECHO;
   }
 
@@ -123,10 +127,10 @@ uint16_t Sr04TMode2Distance(void)
 
   //check crc sum
   if (crc != sonar_serial->read()) {
-    AddLog_P2(LOG_LEVEL_ERROR,PSTR("SR04: Reading CRC error."));
+    AddLog(LOG_LEVEL_ERROR,PSTR("SR4: Reading CRC error."));
     return NO_ECHO;
   }
-  //DEBUG_SENSOR_LOG(PSTR("SR04: Distance: %d"), distance);
+  //DEBUG_SENSOR_LOG(PSTR("SR4: Distance: %d"), distance);
   return distance;
 }
 
@@ -155,11 +159,6 @@ void Sr04TReading(void) {
   return;
 }
 
-#ifdef USE_WEBSERVER
-const char HTTP_SNS_DISTANCE[] PROGMEM =
-  "{s}SR04 " D_DISTANCE "{m}%s" D_UNIT_CENTIMETER "{e}";  // {s} = <tr><th>, {m} = </th><td>, {e} = </td></tr>
-#endif  // USE_WEBSERVER
-
 void Sr04Show(bool json)
 {
 
@@ -170,13 +169,13 @@ void Sr04Show(bool json)
     if(json) {
       ResponseAppend_P(PSTR(",\"SR04\":{\"" D_JSON_DISTANCE "\":%s}"), distance_chr);
 #ifdef USE_DOMOTICZ
-      if (0 == tele_period) {
+      if (0 == TasmotaGlobal.tele_period) {
         DomoticzSensor(DZ_COUNT, distance_chr);  // Send distance as Domoticz Counter value
       }
 #endif  // USE_DOMOTICZ
 #ifdef USE_WEBSERVER
     } else {
-      WSContentSend_PD(HTTP_SNS_DISTANCE, distance_chr);
+      WSContentSend_PD(HTTP_SNS_DISTANCE_CM, "SR04", distance_chr);
 #endif  // USE_WEBSERVER
     }
   }
